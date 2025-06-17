@@ -4,11 +4,13 @@ import type { LLMStatus, ModelDownloadProgress } from '../shared/types'
 export interface IElectronAPI {
   getVersion: () => Promise<string>
   llm: {
-    checkStatus: () => Promise<LLMStatus>
-    downloadModel: () => Promise<void>
+    checkStatus: () => Promise<LLMStatus & { error?: string }>
+    downloadModel: () => Promise<{ success: boolean }>
     analyzePrompt: (prompt: string) => Promise<{
-      analysis: AnalysisResult
-      refinedPrompt: string
+      success: boolean
+      analysis?: AnalysisResult
+      refinedPrompt?: string
+      error?: string
     }>
     onModelProgress: (callback: (progress: ModelDownloadProgress) => void) => () => void
   }

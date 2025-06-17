@@ -31,8 +31,13 @@ function App() {
     
     try {
       const result = await window.electronAPI.llm.analyzePrompt(prompt)
-      setAnalysisResult(result.analysis)
-      setRefinedPrompt(result.refinedPrompt)
+      
+      if (result.success) {
+        setAnalysisResult(result.analysis)
+        setRefinedPrompt(result.refinedPrompt)
+      } else {
+        setError(result.error || 'Failed to analyze prompt')
+      }
     } catch (error) {
       console.error('Analysis failed:', error)
       setError('Failed to analyze prompt. Please ensure Ollama is running.')

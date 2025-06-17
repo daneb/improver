@@ -1,125 +1,126 @@
-import { exec, spawn } from 'child_process'
-import { promisify } from 'util'
-import { BrowserWindow } from 'electron'
+import { spawn } from 'child_process'
 import type { AnalysisResult } from '../../renderer/components/ResultsDisplay'
-import * as http from 'http'
 
-const execAsync = promisify(exec)
+interface OllamaResponse {
+  model: string
+  created_at: string
+  response: string
+  done: boolean
+}
 
 export class OllamaService {
-  private baseUrl = 'http://localhost:11434'
-  private model = 'llama3.2:3b-instruct-fp16' // Best for our use case
+  private model = 'llama3.2:3b-instruct-fp16'
   
-  private makeRequest(path: string, method: string = 'GET', body?: any): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const url = new URL(path, this.baseUrl)
-      
-      const options = {
-        hostname: url.hostname,
-        port: url.port,
-        path: url.pathname,
-        method: method,
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      }
-
-      const req = http.request(options, (res) => {
-        let data = ''
-
-        res.on('data', (chunk) => {
-          data += chunk
-        })
-
-        res.on('end', () => {
-          try {
-            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-              const parsed = data ? JSON.parse(data) : {}
-              resolve(parsed)
-            } else {
-              reject(new Error(`HTTP ${res.statusCode}: ${data}`))
-            }
-          } catch (error) {
-            reject(error)
-          }
-        })
-      })
-
-      req.on('error', (error) => {
-        reject(error)
-      })
-
-      if (body) {
-        req.write(JSON.stringify(body))
-      }
-
-      req.end()
-    })
-  }
-  
+  /**
+   * Check if Ollama is available by running a simple command
+   */
   async checkStatus(): Promise<{
     isInstalled: boolean
     isRunning: boolean
     availableModels: string[]
   }> {
-    try {
-      const data = await this.makeRequest('/api/tags')
-      const models = data.models?.map((m: any) => m.name) || []
-      console.log('Ollama is running with models:', models)
-      return {
-        isInstalled: true,
-        isRunning: true,
-        availableModels: models
-      }
-    } catch (error: any) {
-      console.log('Ollama not running:', error.message)
-      return { isInstalled: false, isRunning: false, availableModels: [] }
-    }
-  }
+    return new Promise((resolve) => {
+      const process = spawn('ollama', ['list'])
+      let output = ''
+      let errorOutput = ''
 
-  async pullModel(window: BrowserWindow): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const pullProcess = exec(`ollama pull ${this.model}`)
-      
-      pullProcess.stdout?.on('data', (data) => {
-        // Parse progress from Ollama output
-        const progressMatch = data.match(/(\d+)%/)
-        if (progressMatch) {
-          const progress = parseInt(progressMatch[1])
-          window.webContents.send('llm:model-progress', {
-            model: this.model,
-            progress,
-            status: 'downloading'
+      process.stdout.on('data', (data) => {
+        output += data.toString()
+      })
+
+      process.stderr.on('data', (data) => {
+        errorOutput += data.toString()
+      })
+
+      process.on('close', (code) => {
+        if (code === 0) {
+          // Parse the model list
+          const lines = output.split('\n').filter(line => line.trim())
+          // Skip the header line
+          const models = lines.slice(1).map(line => {
+            const parts = line.split(/\s+/)
+            return parts[0] // Model name is the first column
+          }).filter(Boolean)
+
+          resolve({
+            isInstalled: true,
+            isRunning: true,
+            availableModels: models
+          })
+        } else {
+          console.log('Ollama not available:', errorOutput)
+          resolve({
+            isInstalled: false,
+            isRunning: false,
+            availableModels: []
           })
         }
       })
-      
-      pullProcess.on('close', (code) => {
-        if (code === 0) {
-          window.webContents.send('llm:model-progress', {
-            model: this.model,
-            progress: 100,
-            status: 'complete'
-          })
-          resolve()
-        } else {
-          reject(new Error(`Model pull failed with code ${code}`))
-        }
+
+      process.on('error', () => {
+        resolve({
+          isInstalled: false,
+          isRunning: false,
+          availableModels: []
+        })
       })
     })
   }
 
+  /**
+   * Run a prompt through Ollama using the CLI
+   */
+  private async runPrompt(prompt: string, options: { temperature?: number } = {}): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const args = ['run', this.model, '--verbose']
+      
+      console.log('Running ollama with prompt...')
+      const process = spawn('ollama', args)
+      let output = ''
+      let errorOutput = ''
+      let isComplete = false
+
+      process.stdout.on('data', (data) => {
+        const chunk = data.toString()
+        output += chunk
+      })
+
+      process.stderr.on('data', (data) => {
+        errorOutput += data.toString()
+      })
+
+      process.on('close', (code) => {
+        if (code === 0 && output) {
+          resolve(output.trim())
+        } else {
+          reject(new Error(`Ollama process failed: ${errorOutput || 'Unknown error'}`))
+        }
+      })
+
+      process.on('error', (error) => {
+        reject(error)
+      })
+
+      // Send the prompt to stdin
+      process.stdin.write(prompt)
+      process.stdin.end()
+    })
+  }
+
+  /**
+   * Analyze a prompt using Ollama
+   */
   async analyzePrompt(prompt: string): Promise<AnalysisResult> {
     const systemPrompt = `You are an expert prompt engineer. Analyze the given prompt and provide structured feedback.
 
-Your response must be valid JSON with this exact structure:
+Your response must be ONLY valid JSON (no markdown, no explanation) with this exact structure:
 {
   "complexity": "simple" | "moderate" | "complex",
   "technique": "technique name",
   "techniqueDescription": "brief description of why this technique is best",
-  "structure": ["step 1", "step 2", "step 3", ...],
-  "keyElements": ["element 1", "element 2", ...],
-  "improvements": ["improvement 1", "improvement 2", ...] or null
+  "structure": ["step 1", "step 2", "step 3"],
+  "keyElements": ["element 1", "element 2"],
+  "improvements": ["improvement 1"] or null
 }
 
 Complexity levels:
@@ -137,39 +138,40 @@ Techniques to consider:
 
 Provide 3-6 items for structure, 4-8 for keyElements, and 0-3 for improvements.`
 
-    const userPrompt = `Analyze this prompt and provide structured feedback: "${prompt}"`
+    const fullPrompt = `${systemPrompt}
+
+Analyze this prompt and respond with JSON only: "${prompt}"`
 
     try {
-      console.log('Sending request to Ollama...')
+      console.log('Analyzing prompt with Ollama CLI...')
+      const response = await this.runPrompt(fullPrompt)
       
-      const requestBody = {
-        model: this.model,
-        prompt: `${systemPrompt}\n\n${userPrompt}`,
-        stream: false,
-        format: 'json',
-        options: {
-          temperature: 0.3,
-          top_p: 0.9,
-        }
+      // Extract JSON from the response
+      // Ollama might include extra text, so we need to find the JSON
+      const jsonMatch = response.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) {
+        throw new Error('No JSON found in response')
       }
 
-      const data = await this.makeRequest('/api/generate', 'POST', requestBody)
-      console.log('Received response from Ollama')
-      
-      const result = JSON.parse(data.response)
+      const result = JSON.parse(jsonMatch[0])
       
       // Validate the response structure
       if (!result.complexity || !result.technique) {
         throw new Error('Invalid response structure from LLM')
       }
 
+      console.log('Analysis complete')
       return result
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error analyzing prompt:', error)
-      throw error
+      // Return a fallback analysis
+      return this.getFallbackAnalysis(prompt)
     }
   }
 
+  /**
+   * Generate a refined prompt
+   */
   async generateRefinedPrompt(
     originalPrompt: string, 
     analysis: AnalysisResult
@@ -190,25 +192,119 @@ Create a refined prompt that:
 3. Has clear structure
 4. Is specific and actionable
 
-Return ONLY the refined prompt, no explanation or markdown.`
+Return ONLY the refined prompt text, no explanation or markdown.`
 
     try {
-      const requestBody = {
-        model: this.model,
-        prompt,
-        stream: false,
-        options: {
-          temperature: 0.7,
-          top_p: 0.9,
-        }
-      }
-
-      const data = await this.makeRequest('/api/generate', 'POST', requestBody)
-      return data.response.trim()
+      const response = await this.runPrompt(prompt)
+      return response.trim()
     } catch (error) {
       console.error('Error generating refined prompt:', error)
-      throw error
+      // Return a basic refined version
+      return this.generateBasicRefinedPrompt(originalPrompt, analysis)
     }
+  }
+
+  /**
+   * Fallback analysis when LLM fails
+   */
+  private getFallbackAnalysis(prompt: string): AnalysisResult {
+    const wordCount = prompt.split(' ').length
+    const hasCodeTerms = /\b(build|create|implement|refactor|optimize|debug|design|develop)\b/i.test(prompt)
+    const hasSystemTerms = /\b(system|application|architecture|api|database|service)\b/i.test(prompt)
+
+    let complexity: 'simple' | 'moderate' | 'complex' = 'simple'
+    if (wordCount > 30 || hasCodeTerms) complexity = 'moderate'
+    if (wordCount > 60 || hasSystemTerms) complexity = 'complex'
+
+    const techniques = {
+      simple: {
+        technique: 'Direct Prompting',
+        techniqueDescription: 'For straightforward tasks, a clear and concise prompt works best.',
+        structure: [
+          'State your request clearly',
+          'Specify the expected output',
+          'Include any constraints'
+        ],
+        keyElements: [
+          'Clear objective',
+          'Output format',
+          'Relevant context',
+          'Success criteria'
+        ]
+      },
+      moderate: {
+        technique: 'Chain of Thought',
+        techniqueDescription: 'Break down your request into logical steps for better reasoning.',
+        structure: [
+          'Provide context and background',
+          'Break down the problem',
+          'Specify reasoning steps',
+          'Define output format'
+        ],
+        keyElements: [
+          'Step-by-step breakdown',
+          'Clear reasoning path',
+          'Intermediate checkpoints',
+          'Examples if applicable',
+          'Error handling',
+          'Performance requirements'
+        ]
+      },
+      complex: {
+        technique: 'Tree of Thoughts with Role-Based Prompting',
+        techniqueDescription: 'Combine expertise with systematic exploration of solutions.',
+        structure: [
+          'Define the AI role and expertise',
+          'Provide comprehensive context',
+          'Outline solution approaches',
+          'Specify evaluation criteria',
+          'Request structured analysis',
+          'Include refinement steps'
+        ],
+        keyElements: [
+          'Domain expertise',
+          'Comprehensive requirements',
+          'Architecture considerations',
+          'Multiple solution paths',
+          'Trade-off analysis',
+          'Scalability factors',
+          'Testing strategies',
+          'Documentation needs'
+        ]
+      }
+    }
+
+    return {
+      complexity,
+      ...techniques[complexity],
+      improvements: null
+    }
+  }
+
+  /**
+   * Generate a basic refined prompt when LLM fails
+   */
+  private generateBasicRefinedPrompt(
+    originalPrompt: string,
+    analysis: AnalysisResult
+  ): string {
+    const intro = analysis.complexity === 'complex' 
+      ? 'As an expert software architect, I need your help with the following:'
+      : analysis.complexity === 'moderate'
+      ? 'I need assistance with the following task:'
+      : ''
+
+    return `${intro}
+
+${originalPrompt}
+
+Please structure your response to include:
+${analysis.structure.map((s, i) => `${i + 1}. ${s}`).join('\n')}
+
+Key requirements:
+${analysis.keyElements.slice(0, 4).map(e => `- ${e}`).join('\n')}
+
+Provide a detailed, actionable response.`.trim()
   }
 }
 

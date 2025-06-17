@@ -1,7 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import * as path from 'path'
-import { ollamaService } from './services/ollama'
-import { LLM_CHANNELS } from '../shared/types'
+import { initializeLLMHandlers, cleanupLLMHandlers } from './services/ipc-handlers'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -46,6 +45,9 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow()
+  
+  // Initialize IPC handlers
+  initializeLLMHandlers()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -55,6 +57,7 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  cleanupLLMHandlers()
   if (process.platform !== 'darwin') {
     app.quit()
   }
@@ -63,27 +66,4 @@ app.on('window-all-closed', () => {
 // IPC handlers
 ipcMain.handle('app:version', () => {
   return app.getVersion()
-})
-
-// LLM handlers
-ipcMain.handle(LLM_CHANNELS.CHECK_STATUS, async () => {
-  return await ollamaService.checkStatus()
-})
-
-ipcMain.handle(LLM_CHANNELS.DOWNLOAD_MODEL, async (event) => {
-  const window = BrowserWindow.fromWebContents(event.sender)
-  if (window) {
-    await ollamaService.pullModel(window)
-  }
-})
-
-ipcMain.handle(LLM_CHANNELS.ANALYZE_PROMPT, async (_, prompt: string) => {
-  try {
-    const analysis = await ollamaService.analyzePrompt(prompt)
-    const refinedPrompt = await ollamaService.generateRefinedPrompt(prompt, analysis)
-    return { analysis, refinedPrompt }
-  } catch (error) {
-    console.error('Error in prompt analysis:', error)
-    throw error
-  }
 })
