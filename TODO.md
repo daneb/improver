@@ -18,22 +18,22 @@
 - [x] Add model loading indicator and error handling
 
 ## Core Functionality
-- [ ] Implement prompt complexity analyzer
-  - [ ] Define complexity metrics (length, technical terms, nested concepts)
-  - [ ] Create heuristic fallback algorithm
-  - [ ] Test with various prompt examples
-- [ ] Build strategy selection engine
-  - [ ] Parse and codify ThoughtWorks techniques
-  - [ ] Create decision tree for technique selection
-  - [ ] Map complexity levels to appropriate strategies
-- [ ] Develop prompt structure suggester
-  - [ ] Create templates for each technique
-  - [ ] Generate key elements based on problem type
-  - [ ] Provide before/after examples
-- [ ] Implement prompt re-evaluation feature
-  - [ ] Compare original vs refined prompt
-  - [ ] Suggest additional improvements
-  - [ ] Track improvement metrics
+- [x] Implement prompt complexity analyzer
+  - [x] Define complexity metrics (length, technical terms, nested concepts)
+  - [x] Create heuristic fallback algorithm
+  - [x] Test with various prompt examples
+- [x] Build strategy selection engine
+  - [x] Parse and codify ThoughtWorks techniques
+  - [x] Create decision tree for technique selection
+  - [x] Map complexity levels to appropriate strategies
+- [x] Develop prompt structure suggester
+  - [x] Create templates for each technique
+  - [x] Generate key elements based on problem type
+  - [x] Provide before/after examples
+- [x] Implement prompt re-evaluation feature
+  - [x] Compare original vs refined prompt
+  - [x] Suggest additional improvements
+  - [x] Track improvement metrics
 
 ## User Interface
 - [x] Design minimal dark theme UI system
