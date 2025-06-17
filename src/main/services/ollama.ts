@@ -1,5 +1,6 @@
 import { spawn } from 'child_process'
 import type { AnalysisResult } from '../../renderer/components/ResultsDisplay'
+import { PROMPT_TECHNIQUES, getTechniquesByComplexity, getRelatedTechniques, type PromptTechnique } from '../../shared/prompt-techniques'
 
 interface OllamaResponse {
   model: string
@@ -116,27 +117,27 @@ export class OllamaService {
 Your response must be ONLY valid JSON (no markdown, no explanation) with this exact structure:
 {
   "complexity": "simple" | "moderate" | "complex",
-  "technique": "technique name",
-  "techniqueDescription": "brief description of why this technique is best",
-  "structure": ["step 1", "step 2", "step 3"],
-  "keyElements": ["element 1", "element 2"],
-  "improvements": ["improvement 1"] or null
+  "recommendedTechnique": "technique-key",
+  "whyThisTechnique": "brief explanation of why this technique fits",
+  "alternativeTechniques": ["technique-key-1", "technique-key-2"],
+  "improvements": ["specific improvement 1", "specific improvement 2"] or null,
+  "tips": ["helpful tip 1", "helpful tip 2"]
 }
+
+Available technique keys:
+${Object.keys(PROMPT_TECHNIQUES).join(', ')}
 
 Complexity levels:
 - simple: Basic tasks, direct questions, simple transformations
-- moderate: Multi-step processes, requires reasoning, integration tasks
+- moderate: Multi-step processes, requires reasoning, integration tasks  
 - complex: System design, architecture, full applications, advanced algorithms
 
-Techniques to consider:
-- Direct Prompting: For simple, straightforward tasks
-- Chain of Thought (CoT): For problems requiring step-by-step reasoning
-- Few-Shot Learning: When examples would help clarify the task
-- Tree of Thoughts: For complex problems with multiple solution paths
-- Role-Based Prompting: When domain expertise is crucial
-- Structured Output Formatting: When specific output format is needed
-
-Provide 3-6 items for structure, 4-8 for keyElements, and 0-3 for improvements.`
+Choose techniques based on:
+- Task complexity and requirements
+- Need for examples (few-shot)
+- Need for reasoning (chain-of-thought, tree-of-thoughts)
+- Need for structure (the-lede, user-story)
+- Domain expertise needed (role-prompting)`
 
     const fullPrompt = `${systemPrompt}
 
@@ -147,17 +148,40 @@ Analyze this prompt and respond with JSON only: "${prompt}"`
       const response = await this.runPrompt(fullPrompt)
       
       // Extract JSON from the response
-      // Ollama might include extra text, so we need to find the JSON
       const jsonMatch = response.match(/\{[\s\S]*\}/)
       if (!jsonMatch) {
         throw new Error('No JSON found in response')
       }
 
-      const result = JSON.parse(jsonMatch[0])
+      const llmResult = JSON.parse(jsonMatch[0])
       
-      // Validate the response structure
-      if (!result.complexity || !result.technique) {
-        throw new Error('Invalid response structure from LLM')
+      // Map the LLM response to our AnalysisResult format
+      const primaryTechnique = PROMPT_TECHNIQUES[llmResult.recommendedTechnique] || 
+        this.getFallbackTechnique(llmResult.complexity || 'moderate')
+      
+      const alternativeTechniques = (llmResult.alternativeTechniques || [])
+        .map((key: string) => PROMPT_TECHNIQUES[key])
+        .filter(Boolean)
+      
+      // If no alternatives provided, use related techniques
+      if (alternativeTechniques.length === 0) {
+        alternativeTechniques.push(...getRelatedTechniques(llmResult.recommendedTechnique).slice(0, 2))
+      }
+      
+      const result: AnalysisResult = {
+        complexity: llmResult.complexity || 'moderate',
+        technique: primaryTechnique.name,
+        techniqueDescription: llmResult.whyThisTechnique || primaryTechnique.whenToUse,
+        techniqueLink: primaryTechnique.link,
+        structure: primaryTechnique.structure,
+        keyElements: this.extractKeyElements(prompt, llmResult.complexity),
+        improvements: llmResult.improvements,
+        alternativeTechniques: alternativeTechniques.map((t: PromptTechnique) => ({
+          name: t.name,
+          description: t.description,
+          link: t.link
+        })),
+        tips: llmResult.tips || this.getDefaultTips(llmResult.complexity)
       }
 
       console.log('Analysis complete')
@@ -205,6 +229,71 @@ Return ONLY the refined prompt text, no explanation or markdown.`
   }
 
   /**
+   * Extract key elements based on prompt content
+   */
+  private extractKeyElements(prompt: string, complexity: string): string[] {
+    const elements = []
+    
+    // Check for specific patterns
+    if (prompt.match(/\b(api|endpoint|rest|graphql)\b/i)) {
+      elements.push('API design considerations', 'Endpoint specifications')
+    }
+    if (prompt.match(/\b(build|create|develop|implement)\b/i)) {
+      elements.push('Clear deliverables', 'Technical requirements')
+    }
+    if (prompt.match(/\b(optimize|improve|enhance|refactor)\b/i)) {
+      elements.push('Performance metrics', 'Current state analysis')
+    }
+    if (prompt.match(/\b(debug|fix|solve|troubleshoot)\b/i)) {
+      elements.push('Error context', 'Expected behavior')
+    }
+    
+    // Add complexity-specific elements
+    if (complexity === 'complex') {
+      elements.push('Architecture decisions', 'Scalability requirements', 'Testing strategy')
+    } else if (complexity === 'moderate') {
+      elements.push('Step-by-step approach', 'Success criteria')
+    }
+    
+    // Add general best practices
+    elements.push('Specific constraints', 'Desired output format')
+    
+    return [...new Set(elements)].slice(0, 8)
+  }
+
+  /**
+   * Get default tips based on complexity
+   */
+  private getDefaultTips(complexity: string): string[] {
+    const tips = {
+      simple: [
+        'Keep it concise and direct',
+        'Specify the exact output format you need'
+      ],
+      moderate: [
+        'Break down complex requirements into steps',
+        'Provide context about your use case',
+        'Consider adding examples of desired output'
+      ],
+      complex: [
+        'Define clear boundaries and constraints',
+        'Specify evaluation criteria for success',
+        'Consider breaking into multiple smaller prompts'
+      ]
+    }
+    
+    return tips[complexity as keyof typeof tips] || tips.moderate
+  }
+
+  /**
+   * Get fallback technique based on complexity
+   */
+  private getFallbackTechnique(complexity: string): PromptTechnique {
+    const techniques = getTechniquesByComplexity(complexity as any)
+    return techniques[0] || PROMPT_TECHNIQUES['chain-of-thought']
+  }
+
+  /**
    * Fallback analysis when LLM fails
    */
   private getFallbackAnalysis(prompt: string): AnalysisResult {
@@ -216,68 +305,28 @@ Return ONLY the refined prompt text, no explanation or markdown.`
     if (wordCount > 30 || hasCodeTerms) complexity = 'moderate'
     if (wordCount > 60 || hasSystemTerms) complexity = 'complex'
 
-    const techniques = {
-      simple: {
-        technique: 'Direct Prompting',
-        techniqueDescription: 'For straightforward tasks, a clear and concise prompt works best.',
-        structure: [
-          'State your request clearly',
-          'Specify the expected output',
-          'Include any constraints'
-        ],
-        keyElements: [
-          'Clear objective',
-          'Output format',
-          'Relevant context',
-          'Success criteria'
-        ]
-      },
-      moderate: {
-        technique: 'Chain of Thought',
-        techniqueDescription: 'Break down your request into logical steps for better reasoning.',
-        structure: [
-          'Provide context and background',
-          'Break down the problem',
-          'Specify reasoning steps',
-          'Define output format'
-        ],
-        keyElements: [
-          'Step-by-step breakdown',
-          'Clear reasoning path',
-          'Intermediate checkpoints',
-          'Examples if applicable',
-          'Error handling',
-          'Performance requirements'
-        ]
-      },
-      complex: {
-        technique: 'Tree of Thoughts with Role-Based Prompting',
-        techniqueDescription: 'Combine expertise with systematic exploration of solutions.',
-        structure: [
-          'Define the AI role and expertise',
-          'Provide comprehensive context',
-          'Outline solution approaches',
-          'Specify evaluation criteria',
-          'Request structured analysis',
-          'Include refinement steps'
-        ],
-        keyElements: [
-          'Domain expertise',
-          'Comprehensive requirements',
-          'Architecture considerations',
-          'Multiple solution paths',
-          'Trade-off analysis',
-          'Scalability factors',
-          'Testing strategies',
-          'Documentation needs'
-        ]
-      }
-    }
+    const techniques = getTechniquesByComplexity(complexity)
+    const primaryTechnique = techniques[0]
+    const alternativeTechniques = techniques.slice(1, 3)
 
     return {
       complexity,
-      ...techniques[complexity],
-      improvements: null
+      technique: primaryTechnique.name,
+      techniqueDescription: primaryTechnique.whenToUse,
+      techniqueLink: primaryTechnique.link,
+      structure: primaryTechnique.structure,
+      keyElements: this.extractKeyElements(prompt, complexity),
+      improvements: [
+        'Add more specific requirements',
+        'Include examples of desired output',
+        'Specify any constraints or limitations'
+      ].slice(0, complexity === 'simple' ? 1 : 2),
+      alternativeTechniques: alternativeTechniques.map(t => ({
+        name: t.name,
+        description: t.description,
+        link: t.link
+      })),
+      tips: this.getDefaultTips(complexity)
     }
   }
 

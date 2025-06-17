@@ -4,9 +4,16 @@ export interface AnalysisResult {
   complexity: 'simple' | 'moderate' | 'complex'
   technique: string
   techniqueDescription: string
+  techniqueLink?: string
   structure: string[]
   keyElements: string[]
   improvements?: string[]
+  alternativeTechniques?: {
+    name: string
+    description: string
+    link: string
+  }[]
+  tips?: string[]
 }
 
 interface ResultsDisplayProps {
@@ -66,7 +73,23 @@ export function ResultsDisplay({ result, isLoading }: ResultsDisplayProps) {
       <div className="bg-gray-900 rounded-lg border border-gray-800 p-6">
         <h3 className="text-lg font-semibold mb-3">Recommended Technique</h3>
         <div className="space-y-3">
-          <h4 className="text-blue-400 font-medium">{result.technique}</h4>
+          <h4 className="text-blue-400 font-medium">
+            {result.techniqueLink ? (
+              <a 
+                href={result.techniqueLink} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="hover:text-blue-300 transition-colors flex items-center gap-1"
+              >
+                {result.technique}
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            ) : (
+              result.technique
+            )}
+          </h4>
           <p className="text-gray-300 text-sm leading-relaxed">{result.techniqueDescription}</p>
         </div>
       </div>
@@ -113,6 +136,48 @@ export function ResultsDisplay({ result, isLoading }: ResultsDisplayProps) {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* Alternative Techniques */}
+      {result.alternativeTechniques && result.alternativeTechniques.length > 0 && (
+        <div className="bg-gray-900 rounded-lg border border-gray-800 p-6">
+          <h3 className="text-lg font-semibold mb-3">Alternative Techniques to Consider</h3>
+          <div className="space-y-3">
+            {result.alternativeTechniques.map((tech, index) => (
+              <div key={index} className="border-l-2 border-gray-700 pl-4">
+                <h4 className="font-medium text-sm">
+                  <a 
+                    href={tech.link} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-purple-400 hover:text-purple-300 transition-colors inline-flex items-center gap-1"
+                  >
+                    {tech.name}
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </a>
+                </h4>
+                <p className="text-gray-400 text-xs mt-1">{tech.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tips for Better Prompting */}
+      {result.tips && result.tips.length > 0 && (
+        <div className="bg-gray-900 rounded-lg border border-gray-800 p-6">
+          <h3 className="text-lg font-semibold mb-3">💡 Quick Tips</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {result.tips.map((tip, index) => (
+              <div key={index} className="flex items-start gap-2">
+                <span className="text-blue-400 text-sm">•</span>
+                <span className="text-gray-300 text-sm">{tip}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
