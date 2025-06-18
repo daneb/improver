@@ -1,6 +1,6 @@
 {
   "name": "improver",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Uses industry-led techniques to help developers improve their prompts",
   "main": "dist/main.js",
   "scripts": {
@@ -23,6 +23,14 @@
     "react"
   ],
   "author": "Dane Balia",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/improver.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/improver/issues"
+  },
+  "homepage": "https://github.com/yourusername/improver#readme",
   "license": "MIT",
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.9",
@@ -66,7 +74,7 @@
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
-      "icon": "assets/icon.icns",
+      "icon": "assets/icon.png",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
