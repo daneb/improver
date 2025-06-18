@@ -25,12 +25,12 @@
   "author": "Dane Balia",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/improver.git"
+    "url": "https://github.com/daneb/improver.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/improver/issues"
+    "url": "https://github.com/daneb/improver/issues"
   },
-  "homepage": "https://github.com/yourusername/improver#readme",
+  "homepage": "https://github.com/daneb/improver#readme",
   "license": "MIT",
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.9",
