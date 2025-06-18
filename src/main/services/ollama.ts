@@ -21,7 +21,19 @@ export class OllamaService {
     availableModels: string[]
   }> {
     return new Promise((resolve) => {
-      const process = spawn('ollama', ['list'])
+      // Set a timeout for the entire check
+      const timeout = setTimeout(() => {
+        console.log('Ollama check timed out')
+        resolve({
+          isInstalled: false,
+          isRunning: false,
+          availableModels: []
+        })
+      }, 3000) // 3 second total timeout
+
+      const process = spawn('ollama', ['list'], {
+        shell: true // Use shell to handle PATH better
+      })
       let output = ''
       let errorOutput = ''
 
@@ -34,22 +46,27 @@ export class OllamaService {
       })
 
       process.on('close', (code) => {
+        clearTimeout(timeout)
         if (code === 0) {
           // Parse the model list
           const lines = output.split('\n').filter(line => line.trim())
-          // Skip the header line
-          const models = lines.slice(1).map(line => {
-            const parts = line.split(/\s+/)
-            return parts[0] // Model name is the first column
-          }).filter(Boolean)
+          // Skip the header line if present
+          const models = lines
+            .filter(line => !line.toLowerCase().includes('name') && line.length > 0)
+            .map(line => {
+              const parts = line.split(/\s+/)
+              return parts[0] // Model name is the first column
+            })
+            .filter(Boolean)
 
+          console.log('Ollama check successful, models:', models)
           resolve({
             isInstalled: true,
             isRunning: true,
             availableModels: models
           })
         } else {
-          console.log('Ollama not available:', errorOutput)
+          console.log('Ollama not available:', errorOutput || 'Exit code ' + code)
           resolve({
             isInstalled: false,
             isRunning: false,
@@ -58,7 +75,9 @@ export class OllamaService {
         }
       })
 
-      process.on('error', () => {
+      process.on('error', (err) => {
+        clearTimeout(timeout)
+        console.log('Ollama spawn error:', err.message)
         resolve({
           isInstalled: false,
           isRunning: false,
@@ -112,6 +131,13 @@ export class OllamaService {
    * Analyze a prompt using Ollama
    */
   async analyzePrompt(prompt: string): Promise<AnalysisResult> {
+    // First, do a quick connectivity check
+    const isAvailable = await this.quickCheck()
+    if (!isAvailable) {
+      console.log('Ollama not available, using fallback analysis')
+      return this.getFallbackAnalysis(prompt)
+    }
+
     const systemPrompt = `You are an expert prompt engineer. Analyze the given prompt and provide structured feedback.
 
 Your response must be ONLY valid JSON (no markdown, no explanation) with this exact structure:
@@ -191,6 +217,35 @@ Analyze this prompt and respond with JSON only: "${prompt}"`
       // Return a fallback analysis
       return this.getFallbackAnalysis(prompt)
     }
+  }
+
+  /**
+   * Quick check if Ollama is responsive
+   */
+  private async quickCheck(): Promise<boolean> {
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        // If we haven't resolved by now, assume it's not available
+        try {
+          process.kill('SIGTERM')
+        } catch {}
+        resolve(false)
+      }, 2000)
+
+      const process = spawn('ollama', ['--version'], {
+        shell: true
+      })
+      
+      process.on('exit', (code) => {
+        clearTimeout(timeout)
+        resolve(code === 0)
+      })
+      
+      process.on('error', () => {
+        clearTimeout(timeout)
+        resolve(false)
+      })
+    })
   }
 
   /**
@@ -294,9 +349,9 @@ Return ONLY the refined prompt text, no explanation or markdown.`
   }
 
   /**
-   * Fallback analysis when LLM fails
+   * Get fallback analysis when LLM fails
    */
-  private getFallbackAnalysis(prompt: string): AnalysisResult {
+  getFallbackAnalysis(prompt: string): AnalysisResult {
     const wordCount = prompt.split(' ').length
     const hasCodeTerms = /\b(build|create|implement|refactor|optimize|debug|design|develop)\b/i.test(prompt)
     const hasSystemTerms = /\b(system|application|architecture|api|database|service)\b/i.test(prompt)
@@ -333,7 +388,7 @@ Return ONLY the refined prompt text, no explanation or markdown.`
   /**
    * Generate a basic refined prompt when LLM fails
    */
-  private generateBasicRefinedPrompt(
+  generateBasicRefinedPrompt(
     originalPrompt: string,
     analysis: AnalysisResult
   ): string {

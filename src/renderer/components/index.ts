@@ -1,4 +1,5 @@
 export { PromptInput } from './PromptInput'
 export { ResultsDisplay } from './ResultsDisplay'
 export { RefinedPrompt } from './RefinedPrompt'
+export { ModelStatus } from './ModelStatus'
 export type { AnalysisResult } from './ResultsDisplay'

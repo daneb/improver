@@ -1,6 +1,6 @@
 {
   "name": "improver",
-  "version": "1.0.0",
+  "version": "1.0.6",
   "description": "Uses industry-led techniques to help developers improve their prompts",
   "main": "dist/main.js",
   "scripts": {

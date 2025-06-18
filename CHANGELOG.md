@@ -2,6 +2,34 @@
 
 All notable changes to Improver will be documented in this file.
 
+## [1.0.6] - 2024-01-XX
+
+### Fixed
+- **Improved Ollama Detection** - More robust detection with proper timeouts
+- **Better Error Handling** - Gracefully handles when Ollama is not available
+- **Shell Spawning** - Uses shell mode for better PATH resolution
+- **Quick Check** - Uses `--version` instead of `list` for faster checks
+
+### Changed
+- Added debug logging for troubleshooting connection issues
+- Improved model list parsing to handle different output formats
+- Timeout handling is now more reliable
+
+## [1.0.5] - 2024-01-XX
+
+### Added
+- **AI Mode Toggle** - Enable/disable AI features on demand
+- **Model Status Indicator** - Visual feedback for Ollama availability
+- **Fallback Mode** - Works without Ollama using heuristic analysis
+- **Retry Button** - Manually retry Ollama connection
+
+### Removed
+- Blocking setup screen - App now starts immediately
+
+### Fixed
+- PostCSS and Tailwind configs converted to CommonJS
+- GitHub Actions updated to v4
+
 ## [1.0.0] - 2024-01-XX
 
 ### Initial Release 🎉

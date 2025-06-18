@@ -23,11 +23,23 @@ export function initializeLLMHandlers() {
   })
 
   // Analyze prompt
-  ipcMain.handle(LLM_CHANNELS.ANALYZE_PROMPT, async (_, prompt: string) => {
+  ipcMain.handle(LLM_CHANNELS.ANALYZE_PROMPT, async (event, prompt: string) => {
     try {
       console.log('IPC: Analyzing prompt...')
-      const analysis = await ollamaService.analyzePrompt(prompt)
-      const refinedPrompt = await ollamaService.generateRefinedPrompt(prompt, analysis)
+      
+      // Check if we should use Ollama (this could be passed from renderer)
+      // For now, we'll always try Ollama first and fallback if it fails
+      let analysis, refinedPrompt
+      
+      try {
+        analysis = await ollamaService.analyzePrompt(prompt)
+        refinedPrompt = await ollamaService.generateRefinedPrompt(prompt, analysis)
+      } catch (ollamaError) {
+        console.log('Ollama failed, using fallback:', ollamaError.message)
+        // Use fallback analysis
+        analysis = ollamaService.getFallbackAnalysis(prompt)
+        refinedPrompt = ollamaService.generateBasicRefinedPrompt(prompt, analysis)
+      }
       
       return {
         success: true,
