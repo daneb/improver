@@ -2,6 +2,17 @@
 
 > Transform your AI prompts using proven engineering techniques
 
+## ⚠️ Early Release - Run Locally Only
+
+**This is an early-stage project that runs perfectly on your local machine but cannot be distributed via traditional installers due to Apple Developer License requirements.**
+
+- 🏃‍♂️ **Works great locally** - Clone and run with `npm run dev`
+- 🚫 **No signed installer** - Apple's security policies require expensive developer licenses
+- 🔒 **Privacy-first** - Your prompts stay completely private on your machine
+- ⚡ **Flexible operation** - Switch between AI-powered analysis and rule-based processing
+
+---
+
 Improver is a macOS app that helps developers write better AI prompts. It analyzes your input, recommends appropriate techniques from industry leaders, and generates improved versions - all running privately on your machine.
 
 ![GitHub release](https://img.shields.io/github/v/release/daneb/improver)
@@ -17,10 +28,21 @@ Improver is a macOS app that helps developers write better AI prompts. It analyz
   ```bash
   ollama pull llama3.2:3b-instruct-fp16
   ```
+- **Node.js** - JavaScript runtime (v16 or higher)
 
-### 2. Download Improver
+### 2. Clone and Setup
 
-Get the latest `.dmg` from [Releases](https://github.com/daneb/improver/releases)
+```bash
+# Clone the repository
+git clone https://github.com/daneb/improver.git
+cd improver
+
+# Install dependencies
+npm install
+
+# Run the app locally
+npm run dev
+```
 
 ### 3. Start Improving
 
@@ -35,6 +57,12 @@ Launch Improver and transform prompts like:
 > "I need to build a React application for a task management system. The app should support user authentication, real-time updates, and work offline. Target deployment is Vercel. Please provide: 1) Project setup with TypeScript, 2) Component architecture, 3) State management strategy, 4) Authentication implementation, 5) Offline capability approach."
 
 ## Features
+
+### ⚡ Flexible Processing Modes
+
+- **AI-Powered Mode** - Uses Ollama and Llama 3.2 for intelligent analysis
+- **Rule-Based Mode** - Fast, deterministic processing without AI dependencies
+- **Seamless Switching** - Toggle between modes based on your needs and resources
 
 ### 🎯 Smart Analysis
 
@@ -77,6 +105,17 @@ Improver incorporates techniques from two authoritative sources:
 - Few-Shot Learning - Learning from examples
 - Tree of Thoughts - Exploring solution paths
 - Role Prompting - Domain expertise
+
+## Why No Installer?
+
+**Apple Developer License Cost**: Apple requires a $99/year Developer License to distribute signed applications. As an open-source project, we prioritize keeping the software free and accessible.
+
+**Security vs. Accessibility**: While Apple's security measures protect users, they create barriers for independent developers. Running from source ensures you can:
+- Inspect the code for security and privacy
+- Modify features to suit your needs
+- Contribute improvements back to the community
+
+**Easy Local Setup**: Modern development tools make running from source straightforward - just a few commands and you're up and running!
 
 ## Development
 
@@ -156,7 +195,7 @@ Built with insights from:
 
 <p align="center">
   <b>Stop guessing. Start engineering better prompts.</b><br>
-  <a href="https://github.com/daneb/improver/releases">Download Now</a> • 
+  <a href="#quick-start">Get Started Locally</a> • 
   <a href="https://github.com/daneb/improver/issues">Report Issue</a> • 
   <a href="https://github.com/daneb/improver/discussions">Discussions</a>
 </p>
